@@ -31,3 +31,51 @@ Many retro CRT systems are non integer scaled and require care with shaders.
 ## RetroArch LCD Scaling
 
 Retro LCD platforms use integer scaling so as to make LCD shaders very clean.
+
+## RetroArch CRT shader for 224p and 480i/p consoles
+
+**Base : ``crt-guest-advanced-fast``**
+- Good robustness to non integer scaling
+- Options enough
+- Not too fancy
+
+| Section | RetroArch Parameter | Preset Key | Value |
+| :--- | :--- | :--- | :--- |
+| Color | Saturation Adjustment | wp_saturation | 1.10 |
+| Color | Contrast Adjustment | contr | 0.05 |
+| Filtering | Horizontal sharpness | h_sharp | 3.20 |
+| Filtering | Substractive sharpness | s_sharp | 0.80 |
+| Brightness | Glow Strength | glow | 0.00 |
+| Brightness | Bright Boost Dark Pixels | brightboost | 1.75 |
+| Brightness | Bright Boost Bright Pixels | brightboost1 | 1.25 |
+| Scanlines | Scanline Beam Shape Center | scanline1 | 4.00 |
+| Scanlines | Scanline Beam Shape Edges | scanline2 | 5.00 |
+| Scanlines | Scanline Shape Dark Pixels | beam_min | 1.15 |
+| Scanlines | Scanline Shape Bright Pixels | beam_max | 1.25 |
+| Scanlines | Increased Bright Scanline Beam | beam_size | 0.35 |
+| CRT Mask | CRT Mask | shadowMask | 10.00 |
+| CRT Mask | Mask Strength (0, 5-14) | maskstr | 0.25 |
+| CRT Mask | Mask 5-14 Low Strength | mcut | 0.70 |
+| CRT Mask | CRT Mask Boost | maskboost | 1.35 |
+| CRT Mask | (Transform to) Shadow Mask | mshift | 1.00 |
+
+```ini
+#reference "shaders_slang/crt/crt-guest-advanced-fast.slangp"
+wp_saturation = "1.100000"
+contr = "0.050000"
+h_sharp = "3.200000"
+s_sharp = "0.800000"
+glow = "0.000000"
+brightboost = "1.750000"
+brightboost1 = "1.250000"
+scanline1 = "4.000000"
+scanline2 = "5.000000"
+beam_min = "1.150000"
+beam_max = "1.250000"
+beam_size = "0.350000"
+shadowMask = "10.000000"
+maskstr = "0.250000"
+mcut = "0.700000"
+maskboost = "1.350000"
+mshift = "1.000000"
+```
