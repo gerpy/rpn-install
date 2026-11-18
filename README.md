@@ -21,7 +21,7 @@ To maximize screen real estate, the following configurations rely on a dual appr
 | **Arcade / Neo Geo** (`FBNeo`) | Var. (0 V / 0 H) | Var. | **1280 × 960** | --- |
 | **Dreamcast** (`Flycast`) | 640×480 (0 V / 0 H) | 640 × 480 | **1280 × 960** | 0,00 % (DAR) |
 
-*Core settings :
+**(*)** Core settings :
 - NES (Mesen) : Overscan Left = 8px et Overscan Right = 8px (Top = 0, Bottom = 0)
 - Master System (Genesis Plus GX) : Hide Master System Side Borders = Left Border Only.
 - PC Engine (Beetle PCE Fast) : Initial Scanline = 0 et Last Scanline = 239 (disabling the default core crop)
