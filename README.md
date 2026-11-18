@@ -79,3 +79,18 @@ mcut = "0.700000"
 maskboost = "1.350000"
 mshift = "1.000000"
 ```
+
+
+
+```ini title="my-guest-2x.slangp"
+#reference "my-guest.slangp"
+intres = "1.000000"
+downsample_levelx = "0.750000"
+downsample_levely = "0.200000"
+```
+
+| Section | Paramètre RetroArch | Clé du fichier | Valeur |
+| :--- | :--- | :--- | :--- |
+| Interlacing Options | Internal Resolution Y | intres | 1.00 |
+| Interlacing Options | Downsampling-X | downsample_levelx | 0.75 |
+| Interlacing Options | Downsampling-Y | downsample_levely | 0.20 |
