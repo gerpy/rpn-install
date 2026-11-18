@@ -32,8 +32,7 @@ Many retro CRT systems are non integer scaled and require care with shaders.
 
 Retro LCD platforms use integer scaling so as to make LCD shaders very clean.
 
-## RetroArch CRT shader for 224p and 480i/p consoles
-
+## RetroArch CRT shaders
 
 ### Base ``my-guest.slang`` shader
 
@@ -89,6 +88,12 @@ mshift = "1.000000"
 
 For N64 and PSX consoles, I like to render 2x upscaled and then use the shader to reduce the clinical look and harmonize better 2D and 3D elements.
 
+| Section | Paramètre RetroArch | Clé du fichier | Valeur |
+| :--- | :--- | :--- | :--- |
+| Interlacing Options | Internal Resolution Y | intres | 1.00 |
+| Interlacing Options | Downsampling-X | downsample_levelx | 0.75 |
+| Interlacing Options | Downsampling-Y | downsample_levely | 0.20 |
+
 ```ini
 #reference "my-guest.slangp"
 intres = "1.000000"
@@ -96,8 +101,8 @@ downsample_levelx = "0.750000"
 downsample_levely = "0.200000"
 ```
 
-| Section | Paramètre RetroArch | Clé du fichier | Valeur |
-| :--- | :--- | :--- | :--- |
-| Interlacing Options | Internal Resolution Y | intres | 1.00 |
-| Interlacing Options | Downsampling-X | downsample_levelx | 0.75 |
-| Interlacing Options | Downsampling-Y | downsample_levely | 0.20 |
+### 480p and 480i consoles ``my-easymode.slangp``
+
+For such consoles, scanlines don't make sense. Since the default ``crt-guest-advanced-fast` settings remove them past 370 lines, the ``my-guest.slang`` is OK. For Dreamcast thought, the VGA compatibility produced very clean images so a simpler shader focussed on the mask for a more organic look proves usefull. Let's use the super light ``crt-easymode_halation`` for this one, ignoting the halation part but gaining the mask selection and the finer brightness control over ``crt-easymode``.
+
+
