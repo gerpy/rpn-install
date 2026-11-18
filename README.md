@@ -103,6 +103,6 @@ downsample_levely = "0.200000"
 
 ### 480p and 480i consoles ``my-easymode.slangp``
 
-For such consoles, scanlines don't make sense. Since the default ``crt-guest-advanced-fast` settings remove them past 370 lines, the ``my-guest.slang`` is OK. For Dreamcast thought, the VGA compatibility produced very clean images so a simpler shader focussed on the mask for a more organic look proves usefull. Let's use the super light ``crt-easymode_halation`` for this one, ignoting the halation part but gaining the mask selection and the finer brightness control over ``crt-easymode``.
+For such consoles, scanlines don't make sense. Since the default ``crt-guest-advanced-fast`` settings remove them past 370 lines, the ``my-guest.slang`` is OK. For Dreamcast thought, the VGA compatibility produced very clean images so a simpler shader focussed on the mask for a more organic look proves usefull. Let's use the super light ``crt-easymode_halation`` for this one, ignoting the halation part but gaining the mask selection and the finer brightness control over ``crt-easymode``.
 
 
