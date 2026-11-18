@@ -84,7 +84,7 @@ maskboost = "1.350000"
 mshift = "1.000000"
 ```
 
-### 3D consoles ``my-guest-2x.slang`` shaders
+### 3D consoles ``my-guest-2x240.slang`` shaders
 
 For N64 and PSX consoles, I like to render 2x upscaled and then use the shader to reduce the clinical look and harmonize better 2D and 3D elements.
 
@@ -101,8 +101,53 @@ downsample_levelx = "0.750000"
 downsample_levely = "0.200000"
 ```
 
-### 480p and 480i consoles ``my-easymode.slangp``
+### 480p and 480i consoles ``my-easy-2x480.slangp``
 
-For such consoles, scanlines don't make sense. Since the default ``crt-guest-advanced-fast`` settings remove them past 370 lines, the ``my-guest.slang`` is OK. For Dreamcast thought, the VGA compatibility produced very clean images so a simpler shader focussed on the mask for a more organic look proves usefull. Let's use the super light ``crt-easymode_halation`` for this one, ignoting the halation part but gaining the mask selection and the finer brightness control over ``crt-easymode``.
+For such consoles, scanlines don't make sense. Since the default ``crt-guest-advanced-fast`` settings remove them past 370 lines, the ``my-guest.slang`` is OK. For Dreamcast thought, the VGA compatibility produced very clean images so a simpler shader focussed on the mask for a more organic look proves usefull. Let's use the super light ``crt-easymode`` for this one. The Flycast core doesn't offer any antialiasing option so the core has to be configured to render the game at 2x before the preset downscales before ``crt-easymode`` is applied (in a typical SSAA antialiasing way).
 
+| Parameter | `.slangp` Identifier | Value | Role in Pipeline |
+| :--- | :--- | :--- | :--- |
+| **Pass 0 (SSAA Downscale)** | `shader0` (`stock.slang`) | `0.50` (`Linear`) | Exact 2×2 box average (1280×960 -> 640×480) to smooth 3D edges |
+| **Pass 1 (CRT & Mask)** | `shader1` (`crt-easymode.slang`) | `Viewport` (`Nearest`) | 2×2 Lanczos upscale to 1280×960 and phosphor mask application |
+| **Sharpness Horizontal** | `SHARPNESS_H` | `0.55` | Optimal balance between 3D blending and 2D sprite/HUD clarity |
+| **Sharpness Vertical** | `SHARPNESS_V` | `0.55` | Smooths low-angle stair-stepping (windshield, grille) without blurring text |
+| **Mask Strength** | `MASK_STRENGTH` | `0.45` | Diffuse organic grain at 356 PPI without excessive brightness loss |
+| **Mask Dot Width** | `MASK_DOT_WIDTH` | `1.00` | Fine 3 px RGB triad tailored to the 1280×960 panel |
+| **Mask Dot Height** | `MASK_DOT_HEIGHT` | `2.00` | Vertically extends the pattern into a micro-brick structure |
+| **Mask Stagger** | `MASK_STAGGER` | `1.00` | Shifts every other row by 1 px (eliminates continuous vertical stripes) |
+| **Mask Size** | `MASK_SIZE` | `1.00` | Native 1:1 scale on the 960p grid |
+| **Scanline Strength** | `SCANLINE_STRENGTH` | `0.00` | Scanlines disabled for 480p (2 px per line ratio is insufficient) |
+| **Gamma Input / Output** | `GAMMA_INPUT` / `GAMMA_OUTPUT` | `2.30` / `2.20` | Boosts color density (+0.10) without crushing shadow detail |
+| **Brightness Boost** | `BRIGHT_BOOST` | `1.15` | Compensates for mask attenuation to match the `my-guest` target |
+| **Dilation** | `DILATION` | `1.00` | Approximate linear-light filtering, preserves fine bright details |
+
+
+
+```ini
+shaders = "2"
+
+shader0 = "shaders_slang/stock.slang"
+filter_linear0 = "true"
+scale_type0 = "source"
+scale0 = "0.500000"
+
+shader1 = "shaders_slang/crt/shaders/crt-easymode.slang"
+filter_linear1 = "false"
+scale_type1 = "viewport"
+
+SHARPNESS_H = "0.550000"
+SHARPNESS_V = "0.550000"
+MASK_STRENGTH = "0.450000"
+MASK_DOT_WIDTH = "1.000000"
+MASK_DOT_HEIGHT = "2.000000"
+MASK_STAGGER = "1.000000"
+MASK_SIZE = "1.000000"
+SCANLINE_STRENGTH = "0.000000"
+GAMMA_INPUT = "2.300000"
+GAMMA_OUTPUT = "2.200000"
+BRIGHT_BOOST = "1.150000"
+DILATION = "1.000000"
+```
+
+If the core offers good antialiasing options such as MSAA, then the first pass is no longer required and the shader preset is :
 
