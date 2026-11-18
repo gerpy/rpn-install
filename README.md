@@ -34,10 +34,15 @@ Retro LCD platforms use integer scaling so as to make LCD shaders very clean.
 
 ## RetroArch CRT shader for 224p and 480i/p consoles
 
-**Base : ``crt-guest-advanced-fast``**
+
+### Base ``my-guest.slang`` shader
+
+Based on **``crt-guest-advanced-fast``** :
+
 - Good robustness to non integer scaling
 - Options enough
 - Not too fancy
+- Not very power hungry
 
 | Section | RetroArch Parameter | Preset Key | Value |
 | :--- | :--- | :--- | :--- |
@@ -80,9 +85,11 @@ maskboost = "1.350000"
 mshift = "1.000000"
 ```
 
+### 3D consoles ``my-guest-2x.slang`` shaders
 
+For N64 and PSX consoles, I like to render 2x upscaled and then use the shader to reduce the clinical look and harmonize better 2D and 3D elements.
 
-```ini title="my-guest-2x.slangp"
+```ini
 #reference "my-guest.slangp"
 intres = "1.000000"
 downsample_levelx = "0.750000"
