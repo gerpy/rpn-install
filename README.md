@@ -44,6 +44,18 @@ All CRT presets are unified around **`crt-easymode-halation`** because it shares
 
 Tuned for soft, even scanlines without moiré on non-integer viewports, a neutral woven dot mask (`Mask 3`), and balanced horizontal sharpness for both pixel-art outlines and dithering.
 
+<table>
+  <tr>
+    <td align="center"><img src="pictures/neogeo-raw.png" alt="Neo Geo raw" /></td>
+    <td align="center"><img src="pictures/neogeo-shader.png" alt="Neo Geo with my-halation-240" /></td>
+  </tr>
+  <tr>
+    <td align="center">Raw output (no shader)</td>
+    <td align="center">With <code>my-halation-240</code></td>
+  </tr>
+</table>
+<p align="center"><em>Neo Geo (240p) — soft scanlines and Mask 3</em></p>
+
 | RetroArch Parameter | Preset Key | Value |
 | :--- | :--- | :--- |
 | Gamma Input | `GAMMA_INPUT` | `2.50` |
@@ -89,6 +101,20 @@ BRIGHTNESS = "1.100000"
 
 Disables both scanlines and fake interlacing (`INTERLACING_TOGGLE = 0.00`) for clean progressive 480p output (e.g., Dreamcast VGA). Uses `Mask 4` so the organic phosphor grain remains perceptible on the 4.5" OLED without scanlines.
 
+<table>
+  <tr>
+    <td align="center"><img src="pictures/dreamcast-1x-raw.png" alt="Dreamcast 1x raw" /></td>
+    <td align="center"><img src="pictures/dreamcast-2x-raw.png" alt="Dreamcast 2x raw" /></td>
+    <td align="center"><img src="pictures/dreamcast-shader.png" alt="Dreamcast with my-halation-480" /></td>
+  </tr>
+  <tr>
+    <td align="center">1× raw</td>
+    <td align="center">2× raw</td>
+    <td align="center">2× + <code>my-ssaa-05x</code> + <code>my-halation-480</code></td>
+  </tr>
+</table>
+<p align="center"><em>Dreamcast (480p VGA) — progressive Mask 4 without scanlines</em></p>
+
 | RetroArch Parameter | Preset Key | Value |
 | :--- | :--- | :--- |
 | Sharpness Horizontal | `SHARPNESS_H` | `0.50` |
@@ -126,7 +152,21 @@ BRIGHTNESS = "1.150000"
 
 ### 2× → 1× SSAA Prepend: `my-ssaa-05x`
 
-For 3D cores without built-in antialiasing (e.g., Flycast at 2× `1280×960`, or PS1/N64 at 2×), prepend this preset before `my-halation-240` or `my-halation-480`. It performs an exact 2×2 box-average downscale back to native resolution before the CRT shader runs.
+For 3D cores without built-in antialiasing (e.g., Flycast at 2× `1280×960`, or PS1/N64 at 2×), prepend this preset before `my-halation-240` or `my-halation-480`. It performs an exact 2×2 box-average downscale back to native resolution before the CRT shader runs, smoothing 3D jaggies while keeping 2D elements cohesive.
+
+<table>
+  <tr>
+    <td align="center"><img src="pictures/ps1-1x-raw.png" alt="PS1 1x raw" /></td>
+    <td align="center"><img src="pictures/ps1-2x-raw.png" alt="PS1 2x raw" /></td>
+    <td align="center"><img src="pictures/ps1-ssa2x-shader.png" alt="PS1 2x SSAA with shader" /></td>
+  </tr>
+  <tr>
+    <td align="center">1× raw</td>
+    <td align="center">2× raw</td>
+    <td align="center">2× + <code>my-ssaa-05x</code> + <code>my-halation-240</code></td>
+  </tr>
+</table>
+<p align="center"><em>PlayStation (240p 3D) — 2× SSAA downscale into CRT scanlines</em></p>
 
 **`my-ssaa-05x.slangp`**
 ```ini
@@ -209,6 +249,26 @@ Dolphin's post-processing pipeline is strictly single-pass, and ARMSX2 benefits 
 ### ARMSX2: `my-armsx2-halation`
 
 Place all four files in the same folder and load `my-armsx2-halation.slangp` in ARMSX2. Full source for `my-armsx2-halation.slang` is in the Appendix.
+
+<table>
+  <tr>
+    <td align="center"><img src="pictures/ps2-1x-raw.png" alt="PS2 1x raw" /></td>
+    <td align="center"><img src="pictures/ps2-1x-shader.png" alt="PS2 1x with shader" /></td>
+  </tr>
+  <tr>
+    <td align="center">1× raw</td>
+    <td align="center">1× + <code>my-armsx2-halation</code></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="pictures/ps2-2x-raw.png" alt="PS2 2x raw" /></td>
+    <td align="center"><img src="pictures/ps2-ssaa2x-shader.png" alt="PS2 2x SSAA with shader" /></td>
+  </tr>
+  <tr>
+    <td align="center">2× raw</td>
+    <td align="center">2× + auto SSAA + <code>my-armsx2-halation</code></td>
+  </tr>
+</table>
+<p align="center"><em>PlayStation 2 (ARMSX2) — 1× vs. 2× with automatic SSAA downscale</em></p>
 
 **`my-armsx2-halation.params`**
 ```ini
