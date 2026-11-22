@@ -30,7 +30,7 @@ Many retro CRT systems are non-integer scaled and require care with shaders.
 
 ## RetroArch LCD Scaling
 
-Retro LCD platforms use integer scaling so as to make LCD shaders very clean.
+Retro LCD platforms use integer scaling so as to make LCD shaders very clean. For **Nintendo 3DS (`Azahar`)**, RetroArch's global integer scaling is turned off on a full `1280×960` viewport because exact `3× / 1×` integer scaling is handled directly inside the custom layout shader.
 
 ---
 
@@ -203,6 +203,7 @@ Some handheld consoles had backlit screens, while others used unlit reflective o
 | **Neo Geo Pocket Color (NGPC)** | Unlit reflective STN LCD | **Light grid** (reflective background) |
 | **PlayStation Portable (PSP)** | Backlit TFT LCD | **Dark grid** (standard backlit display) |
 | **Nintendo DS (Phat / Lite)** | Backlit TFT LCD | **Dark grid** (standard backlit display) |
+| **Nintendo 3DS** | Backlit TFT LCD | **Dark grid** (standard backlit display) |
 
 ### Dark Grid (Backlit): `my-lcd1x.slangp`
 
@@ -236,6 +237,49 @@ GRID_WIDTH = "0.600000"
 GRID_BIAS = "0.700000"
 DARKEN_COLOUR = "0.450000"
 BACKGROUND_INTENSITY = "0.000000"
+```
+
+### Nintendo 3DS (`Azahar`): `my-azahar-3x1x-lcd1x`
+
+On `1280×960`, a stacked **3× / 1×** layout (`1200×720` top + `320×240` bottom) is the mathematical optimum for strict integer scaling on both 3DS screens (76.6% screen coverage). Because Azahar centers the narrower `320×240` screen inside the `400px` Top-Bottom framebuffer, both halves share the same horizontal center axis, making `Swap Screen` work cleanly without any swap-detection pass (the multiplicative `lcd1x` grid keeps pure `#000000` sidebars on OLED).
+
+Official `lcd1x.slang` derives its grid from `OriginalSize` (which breaks on stacked and supersampled framebuffers), so this 2-pass Slang chain handles downscaling, layout, and grid in one pipeline:
+- **Pass 0 (`my-azahar-vertical-ssaa2x.slang`):** exact 2×2 / 4×4 box-filter SSAA downscale (in linear light) back to native `400×480` when the core renders at `2×` or `4×`, with automatic pass-through at `1×`.
+- **Pass 1 (`my-azahar-3x1x-lcd1x.slang`):** renders the top screen at exact `3×` (`1200×720`, `y = 0..719`, ending on a dimmed grid row at `y = 719`) with top-only `lcd1x` grid and brightness/gamma compensation, inserts a `2px` pure-black gap (`y = 720..721`), and anchors the raw untouched `1×` bottom screen cropped by `1px` top and bottom (`238px` tall, `y = 722..959`) to the bottom edge.
+
+**Required Core & RetroArch Settings (Core Override):**
+- **Core Options → Screen Layout:** `Default Top-Bottom`
+- **Core Options → Resolution Scale Factor:** `2x` (or `4x` / `1x`; avoid `3x`)
+- **Video → Scaling → Aspect Ratio:** `Full` (or `4:3`, ensuring a `1280×960` viewport)
+- **Video → Scaling → Integer Scale:** `OFF`
+
+Place all three files in the same folder and load `my-azahar-3x1x-lcd1x.slangp`. Full shader sources are in the Appendix.
+
+| RetroArch Parameter | Preset Key | Scope | Default / Notes |
+| :--- | :--- | :--- | :--- |
+| SSAA Linear Light | `SSAA_LINEAR` | Both | `1.00` (`0` = sRGB, `1` = Gamma 2.0) |
+| Top 3x: Brighten Scanlines | `BRIGHTEN_SCANLINES` | Top 3× only | `16.00` (match `my-lcd1x` e.g. `26.00`) |
+| Top 3x: Brighten LCD | `BRIGHTEN_LCD` | Top 3× only | `4.00` (match `my-lcd1x` e.g. `12.00`) |
+| Top 3x: Brightness Compensation | `TOP_BRIGHTNESS` | Top 3× only | `1.00` (post-grid gain to balance 3× vs. 1×) |
+| Top 3x: Gamma Lift | `TOP_GAMMA` | Top 3× only | `1.00` (`1.0` = off) |
+
+**`my-azahar-3x1x-lcd1x.slangp`**
+```ini
+shaders = 2
+
+shader0 = my-azahar-vertical-ssaa2x.slang
+filter_linear0 = true
+wrap_mode0 = clamp_to_edge
+scale_type0 = absolute
+scale_x0 = 400
+scale_y0 = 480
+
+shader1 = my-azahar-3x1x-lcd1x.slang
+filter_linear1 = false
+wrap_mode1 = clamp_to_edge
+scale_type1 = viewport
+scale_x1 = 1.0
+scale_y1 = 1.0
 ```
 
 ---
@@ -303,7 +347,200 @@ Place `my-dolphin-halation.glsl` in Dolphin's user `Shaders/` directory and sele
 
 ---
 
-## Appendix: Full Standalone Shader Sources
+## Appendix: Full Custom Shader Sources
+
+### `my-azahar-vertical-ssaa2x.slang`
+
+```glsl
+#version 450
+
+/*
+   my-azahar-vertical-ssaa2x.slang
+
+   2x/4x box-filter SSAA downscaler to native 3DS Top-Bottom resolution (400x480)
+   for the Azahar (libretro) core. Bypasses filtering when the core runs at 1x.
+
+   Boilerplate structure based on stock.slang (libretro/slang-shaders, Themaister / hunterk).
+   SSAA box-filter downscaling logic vibe coded by Gemini.
+
+   Released into the public domain.
+*/
+
+#pragma parameter SSAA_LINEAR "SSAA Linear Light (0=sRGB, 1=Gamma 2.0)" 1.0 0.0 1.0 1.0
+
+layout(push_constant) uniform Push
+{
+    vec4 SourceSize;
+    vec4 OriginalSize;
+    vec4 OutputSize;
+    float SSAA_LINEAR;
+} params;
+
+layout(std140, set = 0, binding = 0) uniform UBO
+{
+    mat4 MVP;
+} global;
+
+#pragma stage vertex
+layout(location = 0) in vec4 Position;
+layout(location = 1) in vec2 TexCoord;
+layout(location = 0) out vec2 vTexCoord;
+
+void main()
+{
+    gl_Position = global.MVP * Position;
+    vTexCoord = TexCoord;
+}
+
+#pragma stage fragment
+layout(location = 0) in vec2 vTexCoord;
+layout(location = 0) out vec4 FragColor;
+layout(set = 0, binding = 2) uniform sampler2D Source;
+
+void main()
+{
+    // Core at 1x (400x480): exact pass-through
+    if (params.SourceSize.x < 600.0)
+    {
+        FragColor = texture(Source, vTexCoord);
+        return;
+    }
+
+    // Core at 2x (800x960) or 4x (1600x1920): exact SSAA box-filter without top/bottom bleed
+    const vec2 d = vec2(0.25 / 400.0, 0.25 / 480.0);
+    vec3 c00 = texture(Source, vTexCoord + vec2(-d.x, -d.y)).rgb;
+    vec3 c10 = texture(Source, vTexCoord + vec2( d.x, -d.y)).rgb;
+    vec3 c01 = texture(Source, vTexCoord + vec2(-d.x,  d.y)).rgb;
+    vec3 c11 = texture(Source, vTexCoord + vec2( d.x,  d.y)).rgb;
+
+    vec3 avg;
+    if (params.SSAA_LINEAR > 0.5)
+    {
+        // Linear-light average (gamma 2.0: preserves 3D edge energy, NaN-safe on pure black)
+        avg = sqrt(0.25 * (c00 * c00 + c10 * c10 + c01 * c01 + c11 * c11));
+    }
+    else
+    {
+        avg = 0.25 * (c00 + c10 + c01 + c11);
+    }
+
+    FragColor = vec4(avg, 1.0);
+}
+```
+
+### `my-azahar-3x1x-lcd1x.slang`
+
+```glsl
+#version 450
+
+/*
+   my-azahar-3x1x-lcd1x.slang
+
+   Integer-scaled 3x/1x stacked layout for the Azahar (libretro) core on
+   1280x960 (4:3) displays:
+   - Top screen at 3x (1200x720, y in [0..719]) with the lcd1x grid (ends on a
+     dimmed grid row at y=719) plus top-only brightness/gamma compensation.
+   - 2px pure-black gap (y in [720..721]).
+   - Bottom screen at raw 1x untouched, cropped by 1px top and 1px bottom
+     (238px tall, y in [722..959]) and aligned to the bottom edge.
+
+   LCD grid formula based on handheld/shaders/lcd1x.slang (libretro/slang-shaders):
+   > Original lcd3x code written by Gigaherz and released into the public domain.
+   > Edited as lcd1x by jdgleaver (omits LCD colour separation, aligns scanlines).
+
+   Layout adaptation and integration vibe coded by Gemini.
+
+   This program is free software; you can redistribute it and/or modify it
+   under the terms of the GNU General Public License as published by the Free
+   Software Foundation; either version 2 of the License, or (at your option)
+   any later version.
+*/
+
+#pragma parameter BRIGHTEN_SCANLINES "Top 3x: Brighten Scanlines" 16.0 1.0 64.0 0.5
+#pragma parameter BRIGHTEN_LCD "Top 3x: Brighten LCD" 4.0 1.0 64.0 0.1
+#pragma parameter TOP_BRIGHTNESS "Top 3x: Brightness Compensation" 1.00 0.50 2.00 0.02
+#pragma parameter TOP_GAMMA "Top 3x: Gamma Lift (1.0=Off)" 1.00 0.50 2.00 0.05
+
+layout(push_constant) uniform Push
+{
+    vec4 SourceSize;
+    vec4 OriginalSize;
+    vec4 OutputSize;
+    float BRIGHTEN_SCANLINES;
+    float BRIGHTEN_LCD;
+    float TOP_BRIGHTNESS;
+    float TOP_GAMMA;
+} params;
+
+layout(std140, set = 0, binding = 0) uniform UBO
+{
+    mat4 MVP;
+} global;
+
+#pragma stage vertex
+layout(location = 0) in vec4 Position;
+layout(location = 1) in vec2 TexCoord;
+layout(location = 0) out vec2 vTexCoord;
+
+void main()
+{
+    gl_Position = global.MVP * Position;
+    vTexCoord = TexCoord;
+}
+
+#pragma stage fragment
+layout(location = 0) in vec2 vTexCoord;
+layout(location = 0) out vec4 FragColor;
+layout(set = 0, binding = 2) uniform sampler2D Source; // 400x480 SSAA output from pass 0
+
+#define PI 3.141592654
+
+void main()
+{
+    vec2 px = floor(vTexCoord * params.OutputSize.xy);
+
+    // Large screen 3x (1200x720 centered on x in [40..1240), y in [0..720))
+    // Grid, brightness, and gamma apply ONLY here.
+    if (px.y < 720.0 && px.x >= 40.0 && px.x < 1240.0)
+    {
+        vec2 local = vec2(px.x - 40.0, px.y);
+        vec2 pixelCoord = (local + 0.5) / 3.0;
+        vec2 native_px = floor(pixelCoord);
+        vec2 uv_top = (native_px + 0.5) / vec2(400.0, 480.0);
+        vec3 colour = texture(Source, uv_top).rgb;
+
+        if (abs(params.TOP_GAMMA - 1.0) > 0.001)
+        {
+            // NaN-safe on mobile GPUs while keeping pure black OLED pixels at 0.0
+            colour = pow(max(colour, vec3(1e-6)), vec3(1.0 / params.TOP_GAMMA))
+                   * step(vec3(1e-6), colour);
+        }
+
+        vec2 angle = 2.0 * PI * (pixelCoord - 0.25);
+        float yfactor = (params.BRIGHTEN_SCANLINES + sin(angle.y)) / (params.BRIGHTEN_SCANLINES + 1.0);
+        float xfactor = (params.BRIGHTEN_LCD + sin(angle.x)) / (params.BRIGHTEN_LCD + 1.0);
+
+        vec3 top_out = clamp(colour * yfactor * xfactor * params.TOP_BRIGHTNESS, 0.0, 1.0);
+        FragColor = vec4(top_out, 1.0);
+        return;
+    }
+
+    // 2px pure-black gap at y=720 and y=721
+
+    // Small screen 1x raw & untouched, cropped 1px top & 1px bottom (native y in [1..238]),
+    // anchored to the bottom edge (y in [722..960), x in [440..840))
+    if (px.y >= 722.0 && px.y < 960.0 && px.x >= 440.0 && px.x < 840.0)
+    {
+        float bot_x = px.x - 440.0;
+        float bot_y = (px.y - 722.0) + 1.0;
+        vec2 uv_bot = (vec2(bot_x, 240.0 + bot_y) + 0.5) / vec2(400.0, 480.0);
+        FragColor = vec4(texture(Source, uv_bot).rgb, 1.0);
+        return;
+    }
+
+    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+}
+```
 
 ### `my-armsx2-halation.slang`
 
