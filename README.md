@@ -30,7 +30,9 @@ Many retro CRT systems are non-integer scaled and require care with shaders.
 
 ## RetroArch LCD Scaling
 
-Retro LCD platforms use integer scaling so as to make LCD shaders very clean. For **Nintendo 3DS (`Azahar`)**, RetroArch's global integer scaling is turned off on a full `1280×960` viewport because exact `3× / 1×` integer scaling is handled directly inside the custom layout shader.
+Retro LCD platforms use integer scaling so as to make LCD shaders very clean (`5×` for GBA and full-screen NDS on `1280×960`). Two exceptions turn RetroArch's global integer scaling **OFF** on a full `1280×960` viewport:
+- **Nintendo 3DS (`Azahar`):** exact `3× / 1×` integer scaling is handled directly inside the custom layout shader.
+- **PlayStation Portable (`PPSSPP`):** restricted to 4:3-patched games stretched full-screen and treated with a CRT shader instead of an LCD grid (see below).
 
 ---
 
@@ -186,6 +188,22 @@ scale_type0 = "source"
 scale0 = "0.500000"
 ```
 
+### PlayStation Portable (`PPSSPP` — 4:3 Patched Games)
+
+On a 4:3 screen, native 16:9 PSP (`480×272`) leaves massive letterboxing (and at `2×` integer, `lcd1x` produces no grid at all). The chosen philosophy is to limit the library to titles supporting **4:3 CWCheat patches** and fill the full `1280×960` viewport:
+- **Why a CRT shader instead of an LCD grid:** 4:3 patches are *anamorphic*—they widen the 3D projection matrix inside the fixed `480×272` framebuffer so 3D geometry displays with exact 4:3 proportions once stretched to `1280×960` (only 2D HUD/menus are horizontally compressed). Because the resulting scaling factors are fractional and asymmetric (`2.667×` H / `3.529×` V), integer scaling and `lcd1x` grids cause moiré and irregular rectangular cells. `crt-easymode-halation` handles non-integer, non-square pixels cleanly.
+- **2× core rendering + SSAA:** running the core at `2×` (`960×544`) and prepending `my-ssaa-05x` performs a 2×2 box-filter downscale back to `480×272` before the CRT shader, eliminating 3D aliasing without losing the retro texture.
+
+Two CRT styles are viable depending on whether you prioritize hardware generation or screen readability:
+1. **480p progressive style (generationally aligned):** In hardware terms, the PSP sits in the 6th generation alongside Dreamcast/PS2 rather than PS1. Feeding `2×` (`960×544`) directly—or `4×` + `my-ssaa-05x`—into **`my-halation-480`** (`Mask 4`, no scanlines) matches the Dreamcast/PS2/GameCube look, though a mask-only shader stays fairly subtle on the Nova's 4.5" screen.
+2. **240p/272p scanline style — *Preferred*:** Running **`2×` + `my-ssaa-05x` + `my-halation-240`** (`Mask 3` + soft scanlines). Because the PSP's native vertical resolution (`272p`, `3.53 px/line` on `960p`) is much closer to `240p`/`256p` than `480p`, scanlines fit naturally and remain clearly visible on the compact 4.5" OLED where shadow masks alone fade out.
+
+**Required Core & RetroArch Settings (`PPSSPP` Core Override):**
+- **Core Options → Internal Resolution:** `960×544 (2x)` (with 4:3 CWCheat patch enabled per game)
+- **Video → Scaling → Aspect Ratio:** `4:3` (or `Full`)
+- **Video → Scaling → Integer Scale:** `OFF`
+- **Shader Chain:** `my-ssaa-05x.slangp` + `my-halation-240.slangp`
+
 ---
 
 ## RetroArch LCD Shaders
@@ -201,22 +219,24 @@ Some handheld consoles had backlit screens, while others used unlit reflective o
 | **Game Boy Advance SP (AGS-101)** | Backlit LCD | **Dark grid** (standard backlit display) |
 | **WonderSwan (Mono / Color / Crystal)** | Unlit reflective STN/TFT LCD | **Light grid** (reflective background) |
 | **Neo Geo Pocket Color (NGPC)** | Unlit reflective STN LCD | **Light grid** (reflective background) |
-| **PlayStation Portable (PSP)** | Backlit TFT LCD | **Dark grid** (standard backlit display) |
+| **PlayStation Portable (PSP)** | Backlit TFT LCD (16:9) | **CRT scanlines** (4:3-patched full-screen; see *RetroArch CRT Shaders*) |
 | **Nintendo DS (Phat / Lite)** | Backlit TFT LCD | **Dark grid** (standard backlit display) |
-| **Nintendo 3DS** | Backlit TFT LCD | **Dark grid** (standard backlit display) |
+| **Nintendo 3DS** | Backlit TFT LCD | **Dark grid** (custom 3×/1× layout shader below) |
 
 ### Dark Grid (Backlit): `my-lcd1x.slangp`
 
+Setting `BRIGHTEN_SCANLINES` and `BRIGHTEN_LCD` to the exact same value (`16.00`) produces a uniform, square horizontal/vertical grid with identical average luminance across `3×`, `4×`, and `5×` integer scales (reusable as-is on GBA `5×`, NDS `5×`, and 3DS `3×`).
+
 | RetroArch Parameter | Preset Key | Value |
 | :--- | :--- | :--- |
-| Brighten Scanlines | `BRIGHTEN_SCANLINES` | `26.00` |
-| Brighten LCD | `BRIGHTEN_LCD` | `12.00` |
+| Brighten Scanlines | `BRIGHTEN_SCANLINES` | `16.00` |
+| Brighten LCD | `BRIGHTEN_LCD` | `16.00` |
 
 ```ini
 #reference "shaders_slang/handheld/lcd1x.slangp"
 
-BRIGHTEN_SCANLINES = "26.000000"
-BRIGHTEN_LCD = "12.000000"
+BRIGHTEN_SCANLINES = "16.000000"
+BRIGHTEN_LCD = "16.000000"
 ```
 
 ### Light Grid (Reflective / Front-lit): `my-simpletex.slangp`
@@ -241,45 +261,56 @@ BACKGROUND_INTENSITY = "0.000000"
 
 ### Nintendo 3DS (`Azahar`): `my-azahar-3x1x-lcd1x`
 
-On `1280×960`, a stacked **3× / 1×** layout (`1200×720` top + `320×240` bottom) is the mathematical optimum for strict integer scaling on both 3DS screens (76.6% screen coverage). Because Azahar centers the narrower `320×240` screen inside the `400px` Top-Bottom framebuffer, both halves share the same horizontal center axis, making `Swap Screen` work cleanly without any swap-detection pass (the multiplicative `lcd1x` grid keeps pure `#000000` sidebars on OLED).
+On `1280×960`, a stacked **3× / 1×** layout (`1200×720` top + `320×240` bottom) is the mathematical optimum for strict integer scaling on both 3DS screens (76.6% screen coverage). Because Azahar centers the narrower `320×240` screen inside the `400px`-wide Top-Bottom framebuffer, both halves share the same horizontal center axis, making `Swap Screen` work cleanly with zero swap-detection logic (the multiplicative `lcd1x` grid keeps pure `#000000` sidebars on OLED).
 
-Official `lcd1x.slang` derives its grid from `OriginalSize` (which breaks on stacked and supersampled framebuffers), so this 2-pass Slang chain handles downscaling, layout, and grid in one pipeline:
+Official `lcd1x.slang` derives its grid from `OriginalSize` (which breaks on stacked and supersampled framebuffers), so this 2-pass Slang chain handles SSAA downscaling, layout, grid, and luminance matching in one pipeline:
 - **Pass 0 (`my-azahar-vertical-ssaa2x.slang`):** exact 2×2 / 4×4 box-filter SSAA downscale (in linear light) back to native `400×480` when the core renders at `2×` or `4×`, with automatic pass-through at `1×`.
-- **Pass 1 (`my-azahar-3x1x-lcd1x.slang`):** renders the top screen at exact `3×` (`1200×720`, `y = 0..719`, ending on a dimmed grid row at `y = 719`) with top-only `lcd1x` grid and brightness/gamma compensation, inserts a `2px` pure-black gap (`y = 720..721`), and anchors the raw untouched `1×` bottom screen cropped by `1px` top and bottom (`238px` tall, `y = 722..959`) to the bottom edge.
+- **Pass 1 (`my-azahar-3x1x-lcd1x.slang`):** renders the top screen at exact `3×` (`1200×720`, `y = 0..719`, ending on a dimmed grid row at `y = 719`) with top-only `lcd1x` grid, inserts a `2px` pure-black gap (`y = 720..721`), and anchors the grid-free `1×` bottom screen cropped by `1px` top and bottom (`238px` tall, `y = 722..959`) to the bottom edge.
+- **Luminance homogeneity without highlight clipping:** rather than boosting `TOP_BRIGHTNESS` (which clips bright whites and washes out the grid), `TOP_BRIGHTNESS` stays at `1.00` while `BOTTOM_BRIGHTNESS` (`0.89`, or automatic via `BOTTOM_AUTO_MATCH = 1.0`) trims the raw `1×` screen to match the exact average physical luminance of the `16 / 16` `3×` grid across the entire tone curve.
 
-**Required Core & RetroArch Settings (Core Override):**
+**Required Core & RetroArch Settings (`Azahar` Core Override):**
 - **Core Options → Screen Layout:** `Default Top-Bottom`
 - **Core Options → Resolution Scale Factor:** `2x` (or `4x` / `1x`; avoid `3x`)
 - **Video → Scaling → Aspect Ratio:** `Full` (or `4:3`, ensuring a `1280×960` viewport)
 - **Video → Scaling → Integer Scale:** `OFF`
 
-Place all three files in the same folder and load `my-azahar-3x1x-lcd1x.slangp`. Full shader sources are in the Appendix.
+Place all three files in the same folder and load `my-azahar-3x1x-lcd1x.slangp`. Both `.slang` files keep neutral defaults while personal values live at the bottom of the `.slangp`. Full shader sources are in the Appendix.
 
-| RetroArch Parameter | Preset Key | Scope | Default / Notes |
+| RetroArch Parameter | Preset Key | Scope | Value |
 | :--- | :--- | :--- | :--- |
 | SSAA Linear Light | `SSAA_LINEAR` | Both | `1.00` (`0` = sRGB, `1` = Gamma 2.0) |
-| Top 3x: Brighten Scanlines | `BRIGHTEN_SCANLINES` | Top 3× only | `16.00` (match `my-lcd1x` e.g. `26.00`) |
-| Top 3x: Brighten LCD | `BRIGHTEN_LCD` | Top 3× only | `4.00` (match `my-lcd1x` e.g. `12.00`) |
-| Top 3x: Brightness Compensation | `TOP_BRIGHTNESS` | Top 3× only | `1.00` (post-grid gain to balance 3× vs. 1×) |
-| Top 3x: Gamma Lift | `TOP_GAMMA` | Top 3× only | `1.00` (`1.0` = off) |
+| Top 3x: Brighten Scanlines | `BRIGHTEN_SCANLINES` | Top 3× only | `16.00` (matches `my-lcd1x`) |
+| Top 3x: Brighten LCD | `BRIGHTEN_LCD` | Top 3× only | `16.00` (equal H/V grid) |
+| Top 3x: Brightness Compensation | `TOP_BRIGHTNESS` | Top 3× only | `1.00` (no highlight clipping) |
+| Top 3x: Gamma Lift | `TOP_GAMMA` | Top 3× only | `1.00` (off) |
+| Bottom 1x: Auto-Match Top Luminance | `BOTTOM_AUTO_MATCH` | Bottom 1× only | `0.00` (`1.00` = auto match) |
+| Bottom 1x: Brightness Trim | `BOTTOM_BRIGHTNESS` | Bottom 1× only | `0.89` (matches `16 / 16` grid) |
 
 **`my-azahar-3x1x-lcd1x.slangp`**
 ```ini
-shaders = 2
+shaders = "2"
 
-shader0 = my-azahar-vertical-ssaa2x.slang
-filter_linear0 = true
-wrap_mode0 = clamp_to_edge
-scale_type0 = absolute
-scale_x0 = 400
-scale_y0 = 480
+shader0 = "my-azahar-vertical-ssaa2x.slang"
+filter_linear0 = "true"
+wrap_mode0 = "clamp_to_edge"
+scale_type0 = "absolute"
+scale_x0 = "400"
+scale_y0 = "480"
 
-shader1 = my-azahar-3x1x-lcd1x.slang
-filter_linear1 = false
-wrap_mode1 = clamp_to_edge
-scale_type1 = viewport
-scale_x1 = 1.0
-scale_y1 = 1.0
+shader1 = "my-azahar-3x1x-lcd1x.slang"
+filter_linear1 = "false"
+wrap_mode1 = "clamp_to_edge"
+scale_type1 = "viewport"
+scale_x1 = "1.000000"
+scale_y1 = "1.000000"
+
+SSAA_LINEAR = "1.000000"
+BRIGHTEN_SCANLINES = "16.000000"
+BRIGHTEN_LCD = "16.000000"
+TOP_BRIGHTNESS = "1.000000"
+TOP_GAMMA = "1.000000"
+BOTTOM_AUTO_MATCH = "0.000000"
+BOTTOM_BRIGHTNESS = "0.890000"
 ```
 
 ---
@@ -441,8 +472,9 @@ void main()
    - Top screen at 3x (1200x720, y in [0..719]) with the lcd1x grid (ends on a
      dimmed grid row at y=719) plus top-only brightness/gamma compensation.
    - 2px pure-black gap (y in [720..721]).
-   - Bottom screen at raw 1x untouched, cropped by 1px top and 1px bottom
-     (238px tall, y in [722..959]) and aligned to the bottom edge.
+   - Bottom screen at raw 1x without grid, cropped by 1px top and 1px bottom
+     (238px tall, y in [722..959]), aligned to the bottom edge, with optional
+     luminance matching to the 3x grid.
 
    LCD grid formula based on handheld/shaders/lcd1x.slang (libretro/slang-shaders):
    > Original lcd3x code written by Gigaherz and released into the public domain.
@@ -460,6 +492,8 @@ void main()
 #pragma parameter BRIGHTEN_LCD "Top 3x: Brighten LCD" 4.0 1.0 64.0 0.1
 #pragma parameter TOP_BRIGHTNESS "Top 3x: Brightness Compensation" 1.00 0.50 2.00 0.02
 #pragma parameter TOP_GAMMA "Top 3x: Gamma Lift (1.0=Off)" 1.00 0.50 2.00 0.05
+#pragma parameter BOTTOM_AUTO_MATCH "Bottom 1x: Auto-Match Top Luminance" 0.0 0.0 1.0 1.0
+#pragma parameter BOTTOM_BRIGHTNESS "Bottom 1x: Brightness Trim" 1.00 0.50 1.20 0.01
 
 layout(push_constant) uniform Push
 {
@@ -470,6 +504,8 @@ layout(push_constant) uniform Push
     float BRIGHTEN_LCD;
     float TOP_BRIGHTNESS;
     float TOP_GAMMA;
+    float BOTTOM_AUTO_MATCH;
+    float BOTTOM_BRIGHTNESS;
 } params;
 
 layout(std140, set = 0, binding = 0) uniform UBO
@@ -500,7 +536,6 @@ void main()
     vec2 px = floor(vTexCoord * params.OutputSize.xy);
 
     // Large screen 3x (1200x720 centered on x in [40..1240), y in [0..720))
-    // Grid, brightness, and gamma apply ONLY here.
     if (px.y < 720.0 && px.x >= 40.0 && px.x < 1240.0)
     {
         vec2 local = vec2(px.x - 40.0, px.y);
@@ -527,14 +562,27 @@ void main()
 
     // 2px pure-black gap at y=720 and y=721
 
-    // Small screen 1x raw & untouched, cropped 1px top & 1px bottom (native y in [1..238]),
+    // Small screen 1x without grid, cropped 1px top & 1px bottom (native y in [1..238]),
     // anchored to the bottom edge (y in [722..960), x in [440..840))
     if (px.y >= 722.0 && px.y < 960.0 && px.x >= 440.0 && px.x < 840.0)
     {
         float bot_x = px.x - 440.0;
         float bot_y = (px.y - 722.0) + 1.0;
         vec2 uv_bot = (vec2(bot_x, 240.0 + bot_y) + 0.5) / vec2(400.0, 480.0);
-        FragColor = vec4(texture(Source, uv_bot).rgb, 1.0);
+        vec3 bot_col = texture(Source, uv_bot).rgb;
+
+        float bot_gain = params.BOTTOM_BRIGHTNESS;
+        if (params.BOTTOM_AUTO_MATCH > 0.5)
+        {
+            // Exact average physical luminance ratio (gamma 2.2) of the 3x3 lcd1x block
+            float ye = (params.BRIGHTEN_SCANLINES - 0.5) / (params.BRIGHTEN_SCANLINES + 1.0);
+            float xe = (params.BRIGHTEN_LCD - 0.5) / (params.BRIGHTEN_LCD + 1.0);
+            float ly = (1.0 + 2.0 * pow(max(ye, 1e-6), 2.2)) / 3.0;
+            float lx = (1.0 + 2.0 * pow(max(xe, 1e-6), 2.2)) / 3.0;
+            bot_gain *= pow(lx * ly, 1.0 / 2.2);
+        }
+
+        FragColor = vec4(clamp(bot_col * bot_gain, 0.0, 1.0), 1.0);
         return;
     }
 
