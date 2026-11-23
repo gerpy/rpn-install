@@ -30,9 +30,9 @@ Many retro CRT systems are non-integer scaled and require care with shaders.
 
 ## RetroArch LCD Scaling
 
-Retro LCD platforms use integer scaling so as to make LCD shaders very clean (`5×` for GBA and full-screen NDS on `1280×960`). Two exceptions turn RetroArch's global integer scaling **OFF** on a full `1280×960` viewport:
+Retro LCD platforms use integer scaling so as to make LCD shaders very clean (`5×` for GBA and full-screen NDS on `1280×960`). Two exceptions disable RetroArch's global integer scaling on a full `1280×960` viewport:
 - **Nintendo 3DS (`Azahar`):** exact `3× / 1×` integer scaling is handled directly inside the custom layout shader.
-- **PlayStation Portable (`PPSSPP`):** restricted to 4:3-patched games stretched full-screen and treated with a CRT shader instead of an LCD grid (see below).
+- **PlayStation Portable (`PPSSPP`):** restricted to 4:3-patched games stretched full-screen and paired with a CRT shader instead of an LCD grid (see below).
 
 ---
 
@@ -190,19 +190,12 @@ scale0 = "0.500000"
 
 ### PlayStation Portable (`PPSSPP` — 4:3 Patched Games)
 
-On a 4:3 screen, native 16:9 PSP (`480×272`) leaves massive letterboxing (and at `2×` integer, `lcd1x` produces no grid at all). The chosen philosophy is to limit the library to titles supporting **4:3 CWCheat patches** and fill the full `1280×960` viewport:
-- **Why a CRT shader instead of an LCD grid:** 4:3 patches are *anamorphic*—they widen the 3D projection matrix inside the fixed `480×272` framebuffer so 3D geometry displays with exact 4:3 proportions once stretched to `1280×960` (only 2D HUD/menus are horizontally compressed). Because the resulting scaling factors are fractional and asymmetric (`2.667×` H / `3.529×` V), integer scaling and `lcd1x` grids cause moiré and irregular rectangular cells. `crt-easymode-halation` handles non-integer, non-square pixels cleanly.
-- **2× core rendering + SSAA:** running the core at `2×` (`960×544`) and prepending `my-ssaa-05x` performs a 2×2 box-filter downscale back to `480×272` before the CRT shader, eliminating 3D aliasing without losing the retro texture.
+On a 4:3 screen, PSP is curated around titles with **anamorphic 4:3 CWCheat patches** displayed full-screen (`1280×960`). Because the framebuffer stays fixed at `480×272`, stretching to 4:3 yields fractional, non-square scaling (`2.67×` H / `3.53×` V)—breaking LCD grids—so a CRT shader is used instead, paired with **2× internal rendering (`960×544`) + `my-ssaa-05x`** to smooth 3D aliasing back to `272p`.
 
-Two CRT styles are viable depending on whether you prioritize hardware generation or screen readability:
-1. **480p progressive style (generationally aligned):** In hardware terms, the PSP sits in the 6th generation alongside Dreamcast/PS2 rather than PS1. Feeding `2×` (`960×544`) directly—or `4×` + `my-ssaa-05x`—into **`my-halation-480`** (`Mask 4`, no scanlines) matches the Dreamcast/PS2/GameCube look, though a mask-only shader stays fairly subtle on the Nova's 4.5" screen.
-2. **240p/272p scanline style — *Preferred*:** Running **`2×` + `my-ssaa-05x` + `my-halation-240`** (`Mask 3` + soft scanlines). Because the PSP's native vertical resolution (`272p`, `3.53 px/line` on `960p`) is much closer to `240p`/`256p` than `480p`, scanlines fit naturally and remain clearly visible on the compact 4.5" OLED where shadow masks alone fade out.
+- **480p progressive option:** `2×` (or `4×` + `my-ssaa-05x`) → **`my-halation-480`** aligns with the PSP's 6th-gen (Dreamcast/PS2) hardware class, though mask-only shading remains subtle on a 4.5" screen.
+- **240p/272p scanline option *(preferred)*:** `2×` + **`my-ssaa-05x`** + **`my-halation-240`** fits the PSP's `272p` native vertical resolution (much closer to `240p` than `480p`) and keeps CRT texture clearly perceptible on the compact OLED.
 
-**Required Core & RetroArch Settings (`PPSSPP` Core Override):**
-- **Core Options → Internal Resolution:** `960×544 (2x)` (with 4:3 CWCheat patch enabled per game)
-- **Video → Scaling → Aspect Ratio:** `4:3` (or `Full`)
-- **Video → Scaling → Integer Scale:** `OFF`
-- **Shader Chain:** `my-ssaa-05x.slangp` + `my-halation-240.slangp`
+**Core Override (`PPSSPP`):** `Internal Resolution = 960×544 (2x)` · `Aspect Ratio = 4:3` (or `Full`) · `Integer Scale = OFF` · Chain: `my-ssaa-05x.slangp` + `my-halation-240.slangp`.
 
 ---
 
@@ -225,7 +218,7 @@ Some handheld consoles had backlit screens, while others used unlit reflective o
 
 ### Dark Grid (Backlit): `my-lcd1x.slangp`
 
-Setting `BRIGHTEN_SCANLINES` and `BRIGHTEN_LCD` to the exact same value (`16.00`) produces a uniform, square horizontal/vertical grid with identical average luminance across `3×`, `4×`, and `5×` integer scales (reusable as-is on GBA `5×`, NDS `5×`, and 3DS `3×`).
+Setting `BRIGHTEN_SCANLINES = BRIGHTEN_LCD = 16.00` produces a uniform square grid with identical average luminance across `3×`, `4×`, and `5×` integer scales (reusable as-is on GBA `5×`, NDS `5×`, and 3DS `3×`).
 
 | RetroArch Parameter | Preset Key | Value |
 | :--- | :--- | :--- |
@@ -261,20 +254,24 @@ BACKGROUND_INTENSITY = "0.000000"
 
 ### Nintendo 3DS (`Azahar`): `my-azahar-3x1x-lcd1x`
 
-On `1280×960`, a stacked **3× / 1×** layout (`1200×720` top + `320×240` bottom) is the mathematical optimum for strict integer scaling on both 3DS screens (76.6% screen coverage). Because Azahar centers the narrower `320×240` screen inside the `400px`-wide Top-Bottom framebuffer, both halves share the same horizontal center axis, making `Swap Screen` work cleanly with zero swap-detection logic (the multiplicative `lcd1x` grid keeps pure `#000000` sidebars on OLED).
+On `1280×960`, a stacked **3× / 1×** layout (`1200×720` top + `320×240` bottom) maximizes strict integer-scaled coverage (76.6%). Because official `lcd1x.slang` bases its grid on `OriginalSize` (which breaks on stacked or supersampled framebuffers), this 2-pass Slang chain handles SSAA downscaling, layout, grid, and luminance balance together:
+- **Pass 0 (`my-azahar-vertical-ssaa2x.slang`):** linear-light 2×2 / 4×4 box-filter SSAA downscale back to native `400×480` (pass-through at `1×`).
+- **Pass 1 (`my-azahar-3x1x-lcd1x.slang`):** renders the top screen at `3×` (`y = 0..719`, ending on a dimmed grid row) with top-only `lcd1x` grid, adds a `2px` black gap (`y = 720..721`), and anchors the grid-free `1×` bottom screen cropped by `1px` top and bottom (`y = 722..959`) to the bottom edge. Both screens share the same horizontal axis, so `Swap Screen` works cleanly on OLED. To avoid clipping whites on the `3×` screen, `TOP_BRIGHTNESS` stays at `1.00` while `BOTTOM_BRIGHTNESS` (`0.89`, or automatic via `BOTTOM_AUTO_MATCH`) aligns the `1×` luminance to the `16 / 16` grid.
 
-Official `lcd1x.slang` derives its grid from `OriginalSize` (which breaks on stacked and supersampled framebuffers), so this 2-pass Slang chain handles SSAA downscaling, layout, grid, and luminance matching in one pipeline:
-- **Pass 0 (`my-azahar-vertical-ssaa2x.slang`):** exact 2×2 / 4×4 box-filter SSAA downscale (in linear light) back to native `400×480` when the core renders at `2×` or `4×`, with automatic pass-through at `1×`.
-- **Pass 1 (`my-azahar-3x1x-lcd1x.slang`):** renders the top screen at exact `3×` (`1200×720`, `y = 0..719`, ending on a dimmed grid row at `y = 719`) with top-only `lcd1x` grid, inserts a `2px` pure-black gap (`y = 720..721`), and anchors the grid-free `1×` bottom screen cropped by `1px` top and bottom (`238px` tall, `y = 722..959`) to the bottom edge.
-- **Luminance homogeneity without highlight clipping:** rather than boosting `TOP_BRIGHTNESS` (which clips bright whites and washes out the grid), `TOP_BRIGHTNESS` stays at `1.00` while `BOTTOM_BRIGHTNESS` (`0.89`, or automatic via `BOTTOM_AUTO_MATCH = 1.0`) trims the raw `1×` screen to match the exact average physical luminance of the `16 / 16` `3×` grid across the entire tone curve.
+<table>
+  <tr>
+    <td align="center"><img src="pictures/nds-3x1x-shader.png" alt="3DS 3x/1x stacked layout with my-azahar-3x1x-lcd1x" /></td>
+  </tr>
+  <tr>
+    <td align="center">2× SSAA + <code>my-azahar-3x1x-lcd1x</code> (3× top with <code>lcd1x</code> grid, 2px gap, 1× bottom matched in luminance)</td>
+  </tr>
+</table>
 
-**Required Core & RetroArch Settings (`Azahar` Core Override):**
-- **Core Options → Screen Layout:** `Default Top-Bottom`
-- **Core Options → Resolution Scale Factor:** `2x` (or `4x` / `1x`; avoid `3x`)
-- **Video → Scaling → Aspect Ratio:** `Full` (or `4:3`, ensuring a `1280×960` viewport)
-- **Video → Scaling → Integer Scale:** `OFF`
+> **Accepted trade-offs:** This setup is specifically designed for **non-touch games** with **moderate secondary-screen interaction** (maps, HUDs, occasional menus). Because the shader remaps both screens outside the core's layout geometry, touch coordinates no longer match the `1×` thumbnail, and the compact `1×` screen is not suited for titles requiring intensive, simultaneous focus on both displays.
 
-Place all three files in the same folder and load `my-azahar-3x1x-lcd1x.slangp`. Both `.slang` files keep neutral defaults while personal values live at the bottom of the `.slangp`. Full shader sources are in the Appendix.
+**Core Override (`Azahar`):** `Screen Layout = Default Top-Bottom` · `Resolution Scale Factor = 2x` (or `4x`/`1x`; avoid `3x`) · `Aspect Ratio = Full` (or `4:3`) · `Integer Scale = OFF`.
+
+Place all three files in the same folder and load `my-azahar-3x1x-lcd1x.slangp`. Both `.slang` files keep neutral defaults while personal values live in the `.slangp`. Full shader sources are in the Appendix.
 
 | RetroArch Parameter | Preset Key | Scope | Value |
 | :--- | :--- | :--- | :--- |
